@@ -1,0 +1,57 @@
+#include <esp_now.h>
+#include <WiFi.h>
+
+struct JoystickData {
+  int x;
+  int y;
+};
+
+int leftLED = 5;
+int rightLED = 6;
+
+JoystickData data;
+
+void onDataRecv(const esp_now_recv_info_t *info, const uint8_t *incoming, int len) {
+  memcpy(&data, incoming, sizeof(data));
+
+  int X = data.x - 2048; // -2048 to +2047
+  int Y = data.y - 2048;
+
+  // Wheel mixing
+  int leftWheel  = Y + X;
+  int rightWheel = Y - X;
+
+  // Constrain to LED PWM range
+  leftWheel  = map(leftWheel,  -4096, 4096, 0, 255);
+  rightWheel = map(rightWheel, -4096, 4096, 0, 255);
+
+  leftWheel  = constrain(leftWheel, 0, 255);
+  rightWheel = constrain(rightWheel, 0, 255);
+
+  // Set LED brightness
+  analogWrite(leftLED, leftWheel);
+  analogWrite(rightLED, rightWheel);
+
+  Serial.print("Left: ");
+  Serial.print(leftWheel);
+  Serial.print("   Right: ");
+  Serial.println(rightWheel);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(leftLED, OUTPUT);
+  pinMode(rightLED, OUTPUT);
+
+  WiFi.mode(WIFI_STA);
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW init failed");
+    return;
+  }
+
+  esp_now_register_recv_cb(onDataRecv);
+}
+
+void loop() {}
